@@ -1,0 +1,58 @@
+List<String> commonJvmArgs = [
+        "-noverify",
+        "-XX:+UseCompressedOops",
+        "-XX:SoftRefLRUPolicyMSPerMB=10",
+        '-XX:TieredStopAtLevel=1',
+        "-Xms1g",
+        "-Xmx6g",
+        "-Djline.shutdownhook=false",
+        "-Dgrails.management.endpoints.shutdown.enabled=true",
+        "-Dgrails.full.stacktrace=false",
+        "-Djava.net.preferIPv4Stack=true",
+        "-Dspring.output.ansi.enabled=always",
+        "-Dapple.awt.UIElement=true",
+        "-Dfile.encoding=UTF-8",
+        "-Dlogging.config=${rootDir.path}/common/grails-app/conf/logback-dev.xml",
+        "-Dlog.home=${System.getProperty('log.home', "${projectDir.path}/logs")}",
+]
+
+if (hasProperty("debug")) {
+    commonJvmArgs << "-Xdebug"
+    commonJvmArgs << "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5005"
+}
+
+if (hasProperty("debugWait")) {
+    commonJvmArgs << "-Xdebug"
+    commonJvmArgs << "-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=5005"
+}
+
+console {
+    jvmArgs = commonJvmArgs
+}
+
+
+// https://github.com/gradle/gradle/issues/19324 means we can't reference org.springframework.boot.gradle.tasks.run.BootRun since the actual task is BootRun_decorated
+tasks.named('bootRun').configure {  Task bootRun ->
+    bootRun.ignoreExitValue true
+    String springProfilesActive = 'spring.profiles.active'
+    bootRun.systemProperty springProfilesActive, System.getProperty(springProfilesActive)
+    bootRun.systemProperty 'java.awt.headless', true
+    bootRun.systemProperties System.properties
+
+    doFirst {
+        bootRun.jvmArgs = commonJvmArgs
+    }
+}
+
+tasks.register('runJar', Exec) {
+    dependsOn 'bootJar'
+
+    workingDir "${projectDir}"
+    executable = "java"
+    def argsList = commonJvmArgs.findAll { !it.startsWith('-Xms') && !it.startsWith('-Xmx') }
+    argsList << "-Xms10g"
+    argsList << "-Xmx10g"
+    argsList << "-jar"
+    argsList << "${buildDir}/libs/${project.name}-${project.version}.jar"
+    args = argsList
+}

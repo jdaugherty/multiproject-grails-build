@@ -1,0 +1,10 @@
+plugins {
+    id "groovy"
+}
+
+dependencies {
+    implementation "org.codehaus.groovy:groovy-all:${groovyVersion}"
+    implementation "org.grails.plugins:hibernate5:${project.'gorm.hibernate.version'}"
+    implementation "org.hibernate:hibernate-core:${project.'hibernate.version'}"
+    implementation "com.google.guava:guava:33.0.0-jre"
+}

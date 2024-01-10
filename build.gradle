@@ -5,20 +5,45 @@ buildscript {
     }
     dependencies {
         classpath "org.grails:grails-gradle-plugin:$grailsGradlePluginVersion"
+        classpath "org.grails.plugins:views-gradle:$viewsVersion"
+        classpath "org.grails.plugins:hibernate5:${project.'gorm.hibernate.version'}"
+        classpath "org.grails.plugins:database-migration:${databaseMigrationVersion}"
         classpath "com.bertramlabs.plugins:asset-pipeline-gradle:${assetPipelineVersion}"
         classpath "com.bertramlabs.plugins:sass-dart-asset-pipeline:${assetPipelineVersion}"
     }
 }
 
 plugins {
+    // groovy plugin is a core plugin and included by default, we do not want it applied to the rootProject since we don't have src directories for the root
     id "idea"
+    // application plugin is a core plugin and included by default, we do not want it applied to the rootProject since it's not an application
+//    id "eclipse"
     id "com.github.ben-manes.versions" version "0.39.0"
+
+    // These are applied manually as needed
+//    id "war"
     id "com.adarshr.test-logger" version "2.0.0" apply false
 }
 
 ext {
+    grailsLib = ['corelib']
+    grailsGsp = ['core', 'application1']
     grailsApps = ['application1']
-    grailsPlugins = ['core']
+    grailsPlugins = ['core','testlib']
+}
+
+// Run 'gradle dependencyUpdate' to produce a report of out-of-date dependencies
+def isNonStable = { candidate ->
+    boolean nonStable = ['RC', 'BETA', 'ALPHA', 'PREVIEW'].any { it -> candidate.version.toUpperCase().contains(it) }
+    boolean jankyCommons = candidate.group.startsWith("commons-") && candidate.version =~ /\d{8}(\.\d+)?/
+    nonStable || jankyCommons
+}
+tasks.named("dependencyUpdates").configure {
+    rejectVersionIf {
+        isNonStable(it.candidate)
+    }
+    outputFormatter "plain"
+    revision "release"
 }
 
 allprojects {
@@ -29,18 +54,22 @@ allprojects {
 subprojects { project ->
     boolean isGrailsApp = grailsApps.contains(project.name)
     boolean isGrailsPlugin = grailsPlugins.contains(project.name)
+    boolean isGrailsLibrary = grailsLib.contains(project.name)
     boolean isGrailsProject = isGrailsApp || isGrailsPlugin
     boolean hasAssets = file("${project.projectDir}/grails-app/assets").exists()
 
-    if (isGrailsProject) {
+    apply from: rootProject.file("gradle/compile.gradle")
+    if (isGrailsProject || isGrailsLibrary) {
         if (isGrailsApp) {
+            apply plugin: "application"
             apply plugin: "org.grails.grails-web"
         }
         if (isGrailsPlugin) {
             apply plugin: "org.grails.grails-plugin"
         }
-
-        apply plugin: "org.grails.grails-gsp"
+        if (grailsGsp.contains(project.name)) {
+            apply plugin: "org.grails.grails-gsp"
+        }
 
         if (hasAssets) {
             apply plugin: "com.bertramlabs.asset-pipeline"
@@ -51,135 +80,139 @@ subprojects { project ->
         }
 
         configurations {
-            developmentOnly
-            runtimeClasspath {
-                extendsFrom developmentOnly
+            all {
+                resolutionStrategy.force 'org.codehaus.groovy:groovy-xml:3.0.13'
             }
         }
 
-        dependencies {
-            compileOnly "io.micronaut:micronaut-inject-groovy"
-            console "org.grails:grails-console"
-            implementation "org.springframework.boot:spring-boot-starter-logging"
-            implementation "org.springframework.boot:spring-boot-autoconfigure"
-            implementation "org.grails:grails-core"
-            implementation "org.springframework.boot:spring-boot-starter-actuator"
-            implementation "org.springframework.boot:spring-boot-starter-undertow"
+        if (isGrailsProject) {
+            dependencies {
+                /********************************
+                 * Defined in grails create-app
+                 ********************************/
+                implementation "org.grails:grails-core"
+                implementation "org.grails:grails-logging"
+                implementation "org.grails:grails-plugin-databinding"
+                implementation "org.grails:grails-plugin-i18n"
+                implementation "org.grails:grails-plugin-interceptors"
+                implementation "org.grails:grails-plugin-rest"
+                implementation "org.grails:grails-plugin-services"
+                implementation "org.grails:grails-plugin-url-mappings"
+                implementation "org.grails:grails-web-boot"
+                implementation "org.grails.plugins:gsp"
+                implementation "org.grails.plugins:hibernate5:${project.'gorm.hibernate.version'}"
+//            implementation("org.grails.plugins:scaffolding")
+                implementation "org.hibernate:hibernate-core:${project.'hibernate.version'}"
+                implementation "org.springframework.boot:spring-boot-autoconfigure"
+//            implementation "org.springframework.boot:spring-boot-starter"
+                implementation "org.springframework.boot:spring-boot-starter-actuator"
+                implementation "org.springframework.boot:spring-boot-starter-logging"
+                implementation "org.springframework.boot:spring-boot-starter-undertow"
+//            implementation "org.springframework.boot:spring-boot-starter-validation"
+                compileOnly "io.micronaut:micronaut-inject-groovy"
+                console "org.grails:grails-console"
+                runtimeOnly "com.bertramlabs.plugins:asset-pipeline-grails:${assetPipelineVersion}", {
+                    exclude group: "org.springframework.boot", module: "spring-boot-starter-tomcat"
+                }
+                runtimeOnly "com.h2database:h2"
+                runtimeOnly "javax.xml.bind:jaxb-api"
+//            runtimeOnly("org.apache.tomcat:tomcat-jdbc")
+                runtimeOnly("org.fusesource.jansi:jansi:${jansiVersion}")
+                if (isGrailsApp) {
+                    runtimeOnly "org.glassfish.web:el-impl:2.2.1-b05"
+                }
 
-            implementation "org.grails:grails-web-boot"
-            implementation "org.grails:grails-logging"
-            implementation "org.grails:grails-plugin-rest"
-            implementation "org.grails:grails-plugin-databinding"
-            implementation "org.grails:grails-plugin-i18n"
-            implementation "org.grails:grails-plugin-services"
-            implementation "org.grails:grails-plugin-url-mappings"
-            implementation "org.grails:grails-plugin-interceptors"
-            implementation "org.grails.plugins:cache", {
-                exclude group: 'com.bertramlabs.plugins', module: 'asset-pipeline-grails'
+                /********************************
+                 * Project Specific
+                 ********************************/
+                implementation "org.grails.plugins:cache", {
+                    exclude group: 'com.bertramlabs.plugins', module: 'asset-pipeline-grails'
+                }
+                implementation "org.grails.plugins:async"
+                implementation "org.grails.plugins:events"
+                implementation "org.grails:grails-datastore-gorm-async"
+
+                // Micronaut
+                implementation "io.micronaut:micronaut-http-client"
+
+                // Grails does not export the micronaut reactor in the bom, so this has to match the version of micronaut-core so there aren't conflicts
+                implementation "io.micronaut.reactor:micronaut-reactor:$micronautReactorVersion"
+                implementation "io.micronaut.reactor:micronaut-reactor-http-client:$micronautReactorVersion"
+
+                runtimeOnly "org.codehaus.groovy:groovy-dateutil"
+
+                // Add better directory watching for live-reloading during development
+                developmentOnly "io.methvin:directory-watcher:$methvinDirectoryWatcherVersion"
             }
-            implementation "org.grails.plugins:async"
-            implementation "org.grails.plugins:hibernate5:7.3.1"
-            implementation "org.hibernate:hibernate-core:5.6.15.Final"
-            implementation "org.grails.plugins:events"
-            implementation "org.grails.plugins:gsp"
-            implementation "org.grails:grails-datastore-gorm-async"
-            runtimeOnly "javax.xml.bind:jaxb-api:2.3.1"
-            runtimeOnly "com.h2database:h2:1.4.200"
 
             if (isGrailsApp) {
-                runtimeOnly "org.glassfish.web:el-impl:2.2.1-b05"
-            }
-
-            runtimeOnly  "com.bertramlabs.plugins:asset-pipeline-grails:${assetPipelineVersion}", {
-                exclude group: "org.springframework.boot", module: "spring-boot-starter-tomcat"
-            }
-
-            // Micronaut
-            implementation "io.micronaut:micronaut-http-client"
-
-            // Grails does not export the micronaut reactor in the bom, so this has to match the version of micronaut-core so there aren't conflicts
-            implementation "io.micronaut.reactor:micronaut-reactor:$micronautReactorVersion"
-            implementation "io.micronaut.reactor:micronaut-reactor-http-client:$micronautReactorVersion"
-
-            runtimeOnly "org.codehaus.groovy:groovy-dateutil"
-
-            // Add better directory watching for live-reloading during development
-            developmentOnly "io.methvin:directory-watcher:$methvinDirectoryWatcherVersion"
-        }
-
-        if (isGrailsApp) {
-            springBoot {
-                mainClass = 'io.github.jdaugherty.Application'
-            }
-
-            // Don't create a non-bootable jar for applications, we don't need it
-            jar {
-                enabled = false
-            }
-
-            // Enable layering to allow for docker
-            bootJar {
-                layered {
-                    enabled = true
+                application {
+                    mainClass.set("io.github.jdaugherty.Application")
                 }
-            }
-        }
 
-        if (hasAssets) {
-            if (isGrailsApp) {
-                assets {
-                    minifyJs = true
-                    minifyCss = true
-                    enableSourceMaps = true
-                    verbose = true
-                    developmentRuntime = true
-                    configOptions = [
-                        commonJs: false,
-                        sass: [quietDeps: true]
-                    ]
-
-                    minifyOptions = [
-                        optimizationLevel: 'SIMPLE'
-                    ]
-                }
-            }
-            if (isGrailsPlugin) {
-                assets {
-                    packagePlugin = true
-                }
-                bootJar {
+                // Don't create a non-bootable jar for applications, we don't need it
+                jar {
                     enabled = false
                 }
-            }
-        }
 
-        // Tell IntelliJ to ignore these directories
-        idea {
-            module {
-                excludeDirs += [file("$projectDir/logs"), file("$projectDir/target")]
+                // Enable layering to allow for docker
+                bootJar {
+                    layered {
+                        enabled = true
+                    }
+                }
             }
-        }
 
-        apply from: rootProject.file("gradle/testing.gradle")
-        apply from: rootProject.file("gradle/compile.gradle")
+            if (hasAssets) {
+                if (isGrailsApp) {
+                    assets {
+                        minifyJs = true
+                        minifyCss = true
+                        enableSourceMaps = true
+                        verbose = true
+                        developmentRuntime = true
+                        configOptions = [
+                                commonJs: false,
+                                sass: [quietDeps: true]
+                        ]
+
+                        minifyOptions = [
+                                optimizationLevel: 'SIMPLE'
+                        ]
+                    }
+                }
+                if (isGrailsPlugin) {
+                    assets {
+                        packagePlugin = true
+                    }
+                    bootJar {
+                        enabled = false
+                    }
+                }
+            }
+
+            // Tell IntelliJ to ignore these directories
+            idea {
+                module {
+                    excludeDirs += [file("$projectDir/logs"), file("$projectDir/target")]
+                }
+            }
+
+            apply from: rootProject.file("gradle/testing.gradle")
+            apply from: rootProject.file("gradle/run.gradle")
+        }
     }
 
-    task('bomProperties') {
+    tasks.register('bomProperties') {
         group = 'Introspection'
         description = 'Print properties from all BOMs'
         doLast {
             dependencyManagement.importedProperties.sort().each { println it }
         }
     }
-
-    task('exportVersion') {
-        doLast {
-            println "##teamcity[setParameter name='build.${project.name}.version' value='${projectVersion}']"
-        }
-    }
 }
 
-// asset-pipeline #177 work around for parallel builds in CI
+// asset-pipeline #177 work around for parallel builds in TeamCity
 if (gradle.startParameter.parallelProjectExecutionEnabled) {
     def parentProject = project(':core')
     [project(':application1')].each { dependentProject ->

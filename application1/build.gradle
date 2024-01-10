@@ -1,21 +1,14 @@
-grails {
-    plugins {
-        implementation project(':core')
-    }
-}
-
 dependencies {
     profile "org.grails.profiles:web"
     assets "com.bertramlabs.plugins:sass-dart-asset-pipeline:${assetPipelineVersion}"
+    implementation project(':core')
 
     implementation "org.springframework.integration:spring-integration-amqp"
     implementation "org.springframework.batch:spring-batch-integration"
-    implementation "org.springframework.batch:spring-batch-infrastructure"
 
-    implementation "org.apache.commons:commons-text:1.9"
-    implementation "org.apache.commons:commons-lang3"
-
+    implementation "org.apache.commons:commons-text:1.10.0"
     runtimeOnly "org.grails.plugins:grails-console:2.1.1"
+
     implementation "org.springframework.boot:spring-boot-starter-quartz"
     implementation "org.quartz-scheduler:quartz:${project.'quartz.version'}"
 }
