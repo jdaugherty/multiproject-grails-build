@@ -1,0 +1,87 @@
+def commonJvmArgs = [
+    "-noverify",
+    "-XX:+UseCompressedOops",
+    "-XX:SoftRefLRUPolicyMSPerMB=10",
+    '-XX:TieredStopAtLevel=1',
+    "-Xms1g",
+    "-Xmx6g",
+    "-Djline.shutdownhook=false",
+    "-Dgrails.management.endpoints.shutdown.enabled=true",
+    "-Dgrails.full.stacktrace=false",
+    "-Djava.net.preferIPv4Stack=true",
+    "-Dspring.output.ansi.enabled=always",
+    "-Dapple.awt.UIElement=true",
+    "-Dfile.encoding=UTF-8",
+    "-Dlog.home=${System.getProperty('log.home', "${projectDir.path}/logs")}",
+] 
+
+if (hasProperty("debug")) {
+    commonJvmArgs << "-Xdebug"
+    commonJvmArgs << "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5005"
+}
+
+if (hasProperty("debugWait")) {
+    commonJvmArgs << "-Xdebug"
+    commonJvmArgs << "-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=5005"
+}
+
+
+bootRun {
+    ignoreExitValue true
+    String springProfilesActive = 'spring.profiles.active'
+    systemProperty springProfilesActive, System.getProperty(springProfilesActive)
+    systemProperty 'java.awt.headless', true
+    systemProperties System.properties
+
+    doFirst {
+        jvmArgs = commonJvmArgs
+    }
+}
+
+console {
+    jvmArgs = commonJvmArgs
+}
+
+task(runJar, dependsOn: 'bootJar', type: Exec) {
+    workingDir "${projectDir}"
+    executable = "java"
+    def argsList = commonJvmArgs.findAll { !it.startsWith('-Xms') && !it.startsWith('-Xmx') }
+    argsList << "-Dadd.common.config=true"
+    argsList << "-Xms10g"
+    argsList << "-Xmx10g"
+    argsList << "-jar"
+    argsList << "${buildDir}/libs/${project.name}-${project.version}.jar"
+    args = argsList
+}
+
+sourceCompatibility = 1.8
+targetCompatibility = 1.8
+
+tasks.withType(JavaCompile) {
+    configure(options) {
+        encoding = "utf-8"
+        incremental = true
+        fork = true
+    }
+    configure(options.forkOptions) {
+        memoryMaximumSize = "4096m"
+        jvmArgs = ['-Xmx4096m']
+    }
+}
+
+tasks.withType(GroovyCompile) {
+    configure(options) {
+        encoding = "utf-8"
+        incremental = true
+        fork = true
+    }
+    configure(groovyOptions) {
+        encoding = "utf-8"
+        fork = true
+        optimizationOptions.indy = false
+    }
+    configure(groovyOptions.forkOptions) {
+        memoryMaximumSize = "6g"
+        jvmArgs = ['-Xmx6g' ]
+    }
+}

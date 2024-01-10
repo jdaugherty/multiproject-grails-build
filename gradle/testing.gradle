@@ -1,0 +1,75 @@
+boolean isCIBuild = System.getenv('CI') != null
+
+apply plugin: 'com.adarshr.test-logger'
+
+// This configures the 'pretty' test logging
+testlogger {
+    theme isCIBuild ? 'plain-parallel' : 'mocha-parallel'
+    showExceptions true
+    showStandardStreams false
+    showSummary true
+    showPassed true
+    showSkipped true
+    showFailed true
+}
+
+tasks.withType(Test) {
+    useJUnitPlatform()
+
+    maxHeapSize = "4g"
+    ignoreFailures = true
+    systemProperty 'java.net.preferIPv4Stack', true
+    
+    reports {
+        junitXml.enabled = false
+        html.enabled = true
+    }
+
+    testLogging {
+        showStandardStreams = false
+        exceptionFormat = 'short'
+        stackTraceFilters = ['groovy']
+        events = ['failed', 'skipped']
+        showStackTraces = true
+        showCauses = true
+    }
+}
+
+// Integration test specific options
+if (tasks.findByName('integrationTest')) {
+    integrationTest {
+        systemProperty 'is.integration.test', true
+        systemProperty 'test.stats.enabled', false
+        systemProperty 'grails.env', findProperty('grails.env') ?: 'TEST'
+        maxParallelForks = 1
+        outputs.upToDateWhen { false }
+    }
+}
+
+if (project.hasProperty('test.parallel.degree')) {
+    test {
+        Integer forks = (project.getProperties().get("test.parallel.degree") ?: Runtime.runtime.availableProcessors() / 2) as Integer
+        maxParallelForks = forks
+    }
+}
+
+// Common test dependencies
+dependencies {
+    boolean isGrailsPlugin = grailsPlugins.contains(project.name)
+    boolean isGrailsApp = grailsApps.contains(project.name)
+    boolean isGrailsProject = isGrailsApp || isGrailsPlugin
+
+    if (isGrailsProject) {
+        implementation "org.grails:grails-test"
+        implementation "org.grails:grails-testing-support"
+
+        testImplementation "org.springframework:spring-test"
+        testImplementation "io.micronaut:micronaut-inject-groovy"
+        testImplementation "org.grails:grails-gorm-testing-support"
+        testImplementation "org.mockito:mockito-core"
+        testImplementation "org.grails:grails-web-testing-support"
+        testImplementation "io.github.longwa:build-test-data:5.0.0", {
+            exclude group: "org.grails", module: "grails-console"
+        }
+    }
+}

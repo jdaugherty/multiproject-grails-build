@@ -1,0 +1,6 @@
+enableFeaturePreview('GROOVY_COMPILATION_AVOIDANCE')
+
+include 'core'
+include 'application1'
+
+rootProject.name = 'multiproject'

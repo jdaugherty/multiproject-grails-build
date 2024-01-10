@@ -1,0 +1,127 @@
+apply plugin: 'java-library'
+
+// Share logback.groovy with the applications
+jar {
+    excludes -= 'logback.groovy'
+}
+
+// Work around to ensure AST classes are copied when running in exploded development mode
+// Normally, they depend on the 'classes' task, but it doesn't run when grails.run.active=true
+configScript.dependsOn << copyAstClasses
+
+sourceSets {
+    ast {
+        groovy {
+            compileClasspath += project.configurations.compileClasspath
+        }
+    }
+    main {
+        compileClasspath += ast.output
+        runtimeClasspath += ast.output
+        resources {
+            srcDir 'grails-app/migrations'
+        }
+    }
+    test {
+        compileClasspath += ast.output
+        runtimeClasspath += ast.output
+    }
+}
+
+dependencies {
+    profile "org.grails.profiles:web-plugin"
+    assets "com.bertramlabs.plugins:sass-dart-asset-pipeline:${assetPipelineVersion}"
+
+    api "org.springframework.session:spring-session-core"
+    api "org.springframework.session:spring-session-jdbc"
+
+    api "com.zaxxer:HikariCP"
+    api "org.hibernate:hibernate-jcache"
+    api "com.google.guava:guava:31.0.1-jre"
+    api "joda-time:joda-time"
+
+    api "commons-io:commons-io:2.11.0"
+    api "commons-collections:commons-collections"
+    runtimeOnly "commons-codec:commons-codec"
+
+    api "javax.mail:javax.mail-api"
+    api "org.ehcache:ehcache"
+    runtimeOnly "com.thoughtworks.xstream:xstream:1.4.18"
+    runtimeOnly "com.sun.mail:javax.mail"
+
+    runtimeOnly 'org.postgresql:postgresql:42.3.3'
+
+    api "org.apache.pdfbox:pdfbox:2.0.24"
+    api "com.opencsv:opencsv:5.5.2"
+    api "org.codehaus.gpars:gpars:1.2.1"
+    api "org.jadira.usertype:usertype.core:7.0.0.CR1"
+    api "com.googlecode.owasp-java-html-sanitizer:owasp-java-html-sanitizer:20211018.2"
+    api "commons-fileupload:commons-fileupload:1.5"
+
+    // Add the prometheus endpoint for monitoring
+    runtimeOnly "io.micrometer:micrometer-registry-prometheus"
+
+    // New relic support
+    api "com.newrelic.logging:logback:2.3"
+    api 'com.newrelic.agent.java:newrelic-api:7.4.3'
+
+    // Azure app insights
+    api "io.opentelemetry:opentelemetry-api:1.6.0"
+
+    // SSH (see https://github.com/apache/mina-sshd/blob/master/docs/dependencies.md)
+    api 'org.apache.sshd:sshd-core:2.8.0'
+    api 'org.apache.sshd:sshd-sftp:2.8.0'
+    runtimeOnly 'org.bouncycastle:bcpg-jdk15on:1.70'
+    runtimeOnly 'org.bouncycastle:bcpkix-jdk15on:1.70'
+    runtimeOnly 'net.i2p.crypto:eddsa:0.3.0'
+
+
+    api 'org.apache.commons:commons-compress:1.21'
+
+    implementation "com.microsoft.azure:msal4j:1.13.10"
+    implementation "com.azure:azure-identity:1.10.0"
+    implementation "com.microsoft.graph:microsoft-graph:5.70.0"
+    implementation "com.squareup.okhttp3:logging-interceptor:4.11.0"
+
+    // Use a newer version of xerces due to vulnerabilities
+    api "xerces:xercesImpl:2.12.1"
+
+    api 'com.twilio.sdk:twilio:8.22.0'
+    api 'com.googlecode.libphonenumber:libphonenumber:8.12.37'
+
+    api 'net.sourceforge.nekohtml:nekohtml:1.9.22'
+
+    api "net.redhogs.cronparser:cron-parser-core:3.5"
+
+    compileOnly "com.intellij:openapi:7.0.3"
+
+    compileOnly "org.spockframework:spock-core"
+
+    api "org.springframework.integration:spring-integration-core"
+
+    runtimeOnly "org.yaml:snakeyaml"
+    api 'com.virtualdogbert:GroovyConfigWriter:1.1'
+
+    api "org.grails.plugins:spring-security-core:5.2.1"
+    api "org.grails.plugins:spring-security-ldap:4.0.0.M1"
+    api "org.springframework.security:spring-security-ldap"
+    api "org.grails.plugins:spring-security-rest:3.0.1"
+
+    runtimeOnly "org.grails.plugins:cache-headers:2.0.2"
+    api "org.grails.plugins:csv:1.0.1"
+    api "org.grails.plugins:mail:3.0.0"
+    api "org.grails.plugins:audit-logging:4.0.3"
+
+    api "org.springframework.batch:spring-batch-core"
+    api "org.grails.plugins:joda-time:2.1.0"
+    api "org.grails.plugins:grails-spring-websocket:2.5.0.RC1"
+
+    api "org.grails.plugins:view-tools:1.2.1"
+
+    runtimeOnly "dk.glasius:external-config:3.0.1"
+    runtimeOnly "org.liquibase:liquibase-core:${project.'liquibase.version'}"
+    api "org.grails.plugins:database-migration:${databaseMigrationVersion}" , {
+        exclude group: "org.liquibase", module: "liquibase-test-harness"
+    }
+}
+
